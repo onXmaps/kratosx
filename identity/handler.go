@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gofrs/uuid"
 	"github.com/ory/kratos/hash"
 
 	"github.com/ory/kratos/x"
@@ -213,6 +214,11 @@ type AdminCreateIdentityBody struct {
 	// required: true
 	SchemaID string `json:"schema_id"`
 
+	// ID is the identity's unique identifier.
+	//
+	// required: false
+	ID *uuid.UUID `json:"id,omitempty"`
+
 	// Traits represent an identity's traits. The identity is able to create, modify, and delete traits
 	// in a self-service manner. The input will always be validated against the JSON Schema defined
 	// in `schema_url`.
@@ -250,6 +256,11 @@ type AdminCreateIdentityBody struct {
 	//
 	// required: false
 	State State `json:"state"`
+
+	// CreatedAt represents the time this identity was initially created.
+	//
+	// required: false
+	CreatedAt *time.Time `json:"created_at,omitempty"`
 }
 
 // swagger:model adminIdentityImportCredentials
@@ -351,6 +362,14 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		RecoveryAddresses:   cr.RecoveryAddresses,
 		MetadataAdmin:       []byte(cr.MetadataAdmin),
 		MetadataPublic:      []byte(cr.MetadataPublic),
+	}
+
+	if cr.ID != nil {
+		i.ID = *cr.ID
+	}
+
+	if cr.CreatedAt != nil {
+		i.CreatedAt = *cr.CreatedAt
 	}
 
 	if err := h.importCredentials(r.Context(), i, cr.Credentials); err != nil {

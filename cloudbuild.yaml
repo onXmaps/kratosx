@@ -1,0 +1,46 @@
+steps:
+  # build
+  - id: 'docker build'
+    name: 'gcr.io/cloud-builders/docker'
+    waitFor: ['-']
+    env:
+    - DOCKER_BUILDKIT=1
+    args: [
+      'build',
+      '-f', '.docker/Dockerfile-build',
+      '--build-arg=COMMIT=$(COMMIT_SHA)',
+      '--build-arg=BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")',
+      '-t', 'gcr.io/onx-daily/kratosx:latest',
+      '-t', 'gcr.io/onx-staging/kratosx:latest',
+      '-t', 'gcr.io/onx-production/kratosx:latest',
+      '.'
+    ]
+
+  # push
+  - id: 'docker push'
+    name: 'gcr.io/cloud-builders/docker'
+    waitFor: ['docker build']
+    entrypoint: 'bash'
+    args:
+      - '-c'
+      - |
+        if [[ "$BRANCH_NAME" == "daily" ]]; then
+          docker push gcr.io/onx-daily/kratosx:v0.10.1
+        fi
+
+        if [[ "$BRANCH_NAME" == "staging" ]]; then
+          docker push gcr.io/onx-staging/kratosx:latest
+        fi
+
+        if [[ "$BRANCH_NAME" == "production" ]]; then
+          docker push gcr.io/onx-production/kratosx:latest
+        fi
+
+        if [[ "$BRANCH_NAME" == "0.10.1" ]]; then
+          docker push gcr.io/onx-daily/kratosx:latest
+          docker push gcr.io/onx-staging/kratosx:latest
+          docker push gcr.io/onx-production/kratosx:latest
+        fi
+
+tags:
+  - kratosx
