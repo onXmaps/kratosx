@@ -30,6 +30,10 @@ steps:
           docker push gcr.io/onx-staging/kratosx:latest
         fi
 
+        if [[ "$BRANCH_NAME" == "production" ]]; then
+          docker push gcr.io/onx-production/kratosx:latest
+        fi
+
         if [[ "$BRANCH_NAME" == "master" ]]; then
           docker push gcr.io/onx-daily/kratosx:latest
           docker push gcr.io/onx-staging/kratosx:latest
