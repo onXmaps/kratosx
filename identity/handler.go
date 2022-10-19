@@ -80,6 +80,8 @@ func (h *Handler) RegisterPublicRoutes(public *x.RouterPublic) {
 }
 
 func (h *Handler) RegisterAdminRoutes(admin *x.RouterAdmin) {
+	admin.POST("/import/identity", h.upsert)
+
 	admin.GET(RouteCollection, h.list)
 	admin.GET(RouteItem, h.get)
 	admin.DELETE(RouteItem, h.delete)
@@ -214,11 +216,6 @@ type AdminCreateIdentityBody struct {
 	// required: true
 	SchemaID string `json:"schema_id"`
 
-	// ID is the identity's unique identifier.
-	//
-	// required: false
-	ID *uuid.UUID `json:"id,omitempty"`
-
 	// Traits represent an identity's traits. The identity is able to create, modify, and delete traits
 	// in a self-service manner. The input will always be validated against the JSON Schema defined
 	// in `schema_url`.
@@ -256,11 +253,6 @@ type AdminCreateIdentityBody struct {
 	//
 	// required: false
 	State State `json:"state"`
-
-	// CreatedAt represents the time this identity was initially created.
-	//
-	// required: false
-	CreatedAt *time.Time `json:"created_at,omitempty"`
 }
 
 // swagger:model adminIdentityImportCredentials
@@ -362,14 +354,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request, _ httprouter.Pa
 		RecoveryAddresses:   cr.RecoveryAddresses,
 		MetadataAdmin:       []byte(cr.MetadataAdmin),
 		MetadataPublic:      []byte(cr.MetadataPublic),
-	}
-
-	if cr.ID != nil {
-		i.ID = *cr.ID
-	}
-
-	if cr.CreatedAt != nil {
-		i.CreatedAt = *cr.CreatedAt
 	}
 
 	if err := h.importCredentials(r.Context(), i, cr.Credentials); err != nil {
@@ -542,4 +526,96 @@ func (h *Handler) delete(w http.ResponseWriter, r *http.Request, ps httprouter.P
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+type AdminImportIdentityBody struct {
+	// ID is the identity's unique identifier.
+	//
+	// required: false
+	ID *uuid.UUID `json:"id,omitempty"`
+
+	// CreatedAt represents the time this identity was initially created.
+	//
+	// required: false
+	CreatedAt *time.Time `json:"created_at,omitempty"`
+
+	AdminCreateIdentityBody
+}
+
+// swagger:route POST /admin/identities/import v0alpha2 adminImportIdentities
+//
+// Import identity
+//
+// This endpoint imports an identity. Learn how identities work in [Ory Kratos' User And Identity Model Documentation](https://www.ory.sh/docs/next/kratos/concepts/identity-user-model).
+//
+//     Consumes:
+//     - application/json
+//
+//     Produces:
+//     - application/json
+//
+//     Schemes: http, https
+//
+//     Security:
+//       oryAccessToken:
+//
+//     Responses:
+//       201: identity
+//       400: jsonError
+//		 	 409: jsonError
+//       500: jsonError
+func (h *Handler) upsert(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+	var imp AdminImportIdentityBody
+	if err := jsonx.NewStrictDecoder(r.Body).Decode(&imp); err != nil {
+		h.r.Writer().WriteErrorCode(w, r, http.StatusBadRequest, errors.WithStack(err))
+		return
+	}
+
+	stateChangedAt := sqlxx.NullTime(time.Now())
+	state := StateActive
+	if imp.State != "" {
+		if err := imp.State.IsValid(); err != nil {
+			h.r.Writer().WriteError(w, r, errors.WithStack(herodot.ErrBadRequest.WithReasonf("%s", err).WithWrap(err)))
+			return
+		}
+		state = imp.State
+	}
+
+	i := &Identity{
+		SchemaID:            imp.SchemaID,
+		Traits:              []byte(imp.Traits),
+		State:               state,
+		StateChangedAt:      &stateChangedAt,
+		VerifiableAddresses: imp.VerifiableAddresses,
+		RecoveryAddresses:   imp.RecoveryAddresses,
+		MetadataAdmin:       []byte(imp.MetadataAdmin),
+		MetadataPublic:      []byte(imp.MetadataPublic),
+	}
+
+	if imp.ID != nil {
+		i.ID = *imp.ID
+	}
+
+	if imp.CreatedAt != nil {
+		i.CreatedAt = *imp.CreatedAt
+	}
+
+	if err := h.importCredentials(r.Context(), i, imp.Credentials); err != nil {
+		h.r.Writer().WriteError(w, r, err)
+		return
+	}
+
+	if err := h.r.IdentityManager().Import(r.Context(), i); err != nil {
+		h.r.Writer().WriteError(w, r, err)
+		return
+	}
+
+	h.r.Writer().WriteCreated(w, r,
+		urlx.AppendPaths(
+			h.r.Config(r.Context()).SelfAdminURL(),
+			"identities",
+			i.ID.String(),
+		).String(),
+		WithCredentialsMetadataAndAdminMetadataInJSON(*i),
+	)
 }

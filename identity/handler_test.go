@@ -250,24 +250,12 @@ func TestHandler(t *testing.T) {
 
 			require.NoError(t, hash.Compare(ctx, []byte("123456"), []byte(gjson.GetBytes(actual.Credentials[identity.CredentialsTypePassword].Config, "hashed_password").String())))
 		})
-
-		t.Run("with valid id", func(t *testing.T) {
-			res := send(t, adminTS, "POST", "/identities", http.StatusCreated, json.RawMessage(`{"id":"f1507c3b-6d08-486e-89bd-b695480e1cf6","traits":{"email":"import-7@ory.sh"}}`))
-			assert.Contains(t, res.Raw, "id")
-			assert.Contains(t, res.Raw, "f1507c3b-6d08-486e-89bd-b695480e1cf6")
-		})
-
-		t.Run("with valid created_at", func(t *testing.T) {
-			res := send(t, adminTS, "POST", "/identities", http.StatusCreated, json.RawMessage(`{"traits":{"email":"import-8@ory.sh"},"created_at":"2020-02-20T12:00:00Z"}`))
-			assert.Contains(t, res.Raw, "id")
-			assert.Contains(t, res.Raw, "2020-02-20")
-		})
 	})
 
-	t.Run("case=unable to set invalid ID", func(t *testing.T) {
+	t.Run("case=unable to set ID itself", func(t *testing.T) {
 		for name, ts := range map[string]*httptest.Server{"public": publicTS, "admin": adminTS} {
 			t.Run("endpoint="+name, func(t *testing.T) {
-				res := send(t, ts, "POST", "/identities", http.StatusBadRequest, json.RawMessage(`{"id":"12345","traits":{"email":"import-9@ory.sh"}}`))
+				res := send(t, ts, "POST", "/identities", http.StatusBadRequest, json.RawMessage(`{"id":"12345","traits":{}}`))
 				assert.Contains(t, res.Raw, "id")
 			})
 		}
@@ -332,19 +320,17 @@ func TestHandler(t *testing.T) {
 			}))
 			return iId.String()
 		}
-		t.Run("case=should create an identity with a valid ID", func(t *testing.T) {
+		t.Run("case=should create an identity with an ID which is ignored", func(t *testing.T) {
 			for name, ts := range map[string]*httptest.Server{"public": publicTS, "admin": adminTS} {
-				imported_uuid := x.NewUUID()
 				t.Run("endpoint="+name, func(t *testing.T) {
-					res := send(t, ts, "POST", "/identities", http.StatusCreated, json.RawMessage(fmt.Sprintf(`{"id":"%s","traits": {"bar":"baz"}}`, imported_uuid)))
+					res := send(t, ts, "POST", "/identities", http.StatusCreated, json.RawMessage(`{"traits": {"bar":"baz"}}`))
 					stateChangedAt := sqlxx.NullTime(res.Get("state_changed_at").Time())
 
 					i.Traits = []byte(res.Get("traits").Raw)
 					i.ID = x.ParseUUID(res.Get("id").String())
 					i.StateChangedAt = &stateChangedAt
-
 					assert.NotEmpty(t, res.Get("id").String())
-					assert.EqualValues(t, i.ID, imported_uuid)
+
 					assert.EqualValues(t, "baz", res.Get("traits.bar").String(), "%s", res.Raw)
 					assert.Empty(t, res.Get("credentials").String(), "%s", res.Raw)
 					assert.EqualValues(t, defaultSchemaExternalURL, res.Get("schema_url").String(), "%s", res.Raw)
@@ -730,5 +716,45 @@ func TestHandler(t *testing.T) {
 				remove(t, ts, "/identities/"+x.NewUUID().String(), http.StatusNotFound)
 			})
 		}
+	})
+
+	t.Run("case=should import an identity", func(t *testing.T) {
+		t.Run("with an id", func(t *testing.T) {
+			iID := x.NewUUID()
+			email := fmt.Sprintf("%s@ory.sh", iID)
+			body := fmt.Sprintf(`{"id":"%s","traits":{"email":"%s"}}`, iID, email)
+			res := send(t, adminTS, "POST", "/import/identity", http.StatusCreated, json.RawMessage(body))
+
+			assert.Equal(t, iID, x.ParseUUID(res.Get("id").String()))
+			assert.Equal(t, email, res.Get("traits.email").String())
+		})
+
+		t.Run("with a created at date", func(t *testing.T) {
+			createdAt := "2020-12-24T12:59:59Z"
+			email := fmt.Sprintf("%s@ory.sh", x.NewUUID())
+			body := fmt.Sprintf(`{"created_at":"%s","traits":{"email":"%s"}}`, createdAt, email)
+			res := send(t, adminTS, "POST", "/import/identity", http.StatusCreated, json.RawMessage(body))
+
+			assert.NotNil(t, uuid.FromStringOrNil(res.Get("id").String()))
+			assert.Equal(t, email, res.Get("traits.email").String())
+			assert.Equal(t, createdAt, res.Get("created_at").String())
+		})
+
+		t.Run("multiple times with updates", func(t *testing.T) {
+			iID := x.NewUUID()
+			email := fmt.Sprintf("%s@ory.sh", iID)
+			body := fmt.Sprintf(`{"id":"%s","traits":{"email":"%s"}}`, iID, email)
+			res := send(t, adminTS, "POST", "/import/identity", http.StatusCreated, json.RawMessage(body))
+
+			assert.Equal(t, iID, x.ParseUUID(res.Get("id").String()))
+			assert.Equal(t, email, res.Get("traits.email").String())
+
+			updatedEmail := fmt.Sprintf("%s+0@ory.sh", iID)
+			body = fmt.Sprintf(`{"id":"%s","traits":{"email":"%s"}}`, iID, updatedEmail)
+			res = send(t, adminTS, "POST", "/import/identity", http.StatusCreated, json.RawMessage(body))
+
+			assert.Equal(t, iID, x.ParseUUID(res.Get("id").String()))
+			assert.Equal(t, updatedEmail, res.Get("traits.email").String())
+		})
 	})
 }

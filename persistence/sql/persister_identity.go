@@ -565,3 +565,30 @@ func (p *Persister) injectTraitsSchemaURL(ctx context.Context, i *identity.Ident
 	i.SchemaURL = s.SchemaURL(p.r.Config(ctx).SelfPublicURL()).String()
 	return nil
 }
+
+func (p *Persister) ImportIdentity(ctx context.Context, i *identity.Identity) error {
+	ctx, span := p.r.Tracer(ctx).Tracer().Start(ctx, "persistence.sql.ImportIdentity")
+	defer span.End()
+
+	// no ID set so just create a new identity
+	if i.ID == uuid.Nil {
+		return p.CreateIdentity(ctx, i)
+	}
+
+	// lookup the identity by the given ID
+	nid := corp.ContextualizeNID(ctx, p.nid)
+	idExists, err := p.GetConnection(ctx).Where("id = ? AND nid = ?", i.ID, nid).Exists(i)
+
+	if err != nil {
+		// if an error occurred that wasn't "no rows" then return that
+		return sqlcon.HandleError(err)
+	}
+
+	if idExists {
+		// we found an identity, so update it
+		return p.UpdateIdentity(ctx, i)
+	} else {
+		// doesn't exist, so create one
+		return p.CreateIdentity(ctx, i)
+	}
+}

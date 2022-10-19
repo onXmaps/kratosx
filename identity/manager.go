@@ -190,3 +190,12 @@ func (m *Manager) CountActiveMultiFactorCredentials(ctx context.Context, i *Iden
 	}
 	return count, nil
 }
+
+func (m *Manager) Import(ctx context.Context, i *Identity, opts ...ManagerOption) error {
+	o := newManagerOptions(opts)
+	if err := m.validate(ctx, i, o); err != nil {
+		return err
+	}
+
+	return m.r.IdentityPool().(PrivilegedPool).ImportIdentity(ctx, i)
+}

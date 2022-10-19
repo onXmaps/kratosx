@@ -62,5 +62,9 @@ type (
 
 		// ListRecoveryAddresses lists all tracked recovery addresses.
 		ListRecoveryAddresses(ctx context.Context, page, itemsPerPage int) ([]RecoveryAddress, error)
+
+		// ImportIdentity upserts an identity. It is capable of setting credentials without encoding. Will overwrite an identity
+		// if the identity already exists. Will return an error if backend connectivity is broken or trait validation fails.
+		ImportIdentity(context.Context, *Identity) error
 	}
 )
