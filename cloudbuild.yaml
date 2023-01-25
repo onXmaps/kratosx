@@ -10,9 +10,9 @@ steps:
       '-f', '.docker/Dockerfile-build',
       '--build-arg=COMMIT=$(COMMIT_SHA)',
       '--build-arg=BUILD_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")',
-      '-t', 'gcr.io/onx-daily/kratosx:latest',
-      '-t', 'gcr.io/onx-staging/kratosx:latest',
-      '-t', 'gcr.io/onx-production/kratosx:latest',
+      '-t', 'gcr.io/onx-daily/kratosx:$SHORT_SHA',
+      '-t', 'gcr.io/onx-staging/kratosx:$SHORT_SHA',
+      '-t', 'gcr.io/onx-production/kratosx:$SHORT_SHA',
       '.'
     ]
 
@@ -25,21 +25,21 @@ steps:
       - '-c'
       - |
         if [[ "$BRANCH_NAME" == "daily" ]]; then
-          docker push gcr.io/onx-daily/kratosx:v0.10.1
+          docker push gcr.io/onx-daily/kratosx:$SHORT_SHA
         fi
 
         if [[ "$BRANCH_NAME" == "staging" ]]; then
-          docker push gcr.io/onx-staging/kratosx:latest
+          docker push gcr.io/onx-staging/kratosx:$SHORT_SHA
         fi
 
         if [[ "$BRANCH_NAME" == "production" ]]; then
-          docker push gcr.io/onx-production/kratosx:latest
+          docker push gcr.io/onx-production/kratosx:$SHORT_SHA
         fi
 
         if [[ "$BRANCH_NAME" == "0.10.1" ]]; then
-          docker push gcr.io/onx-daily/kratosx:latest
-          docker push gcr.io/onx-staging/kratosx:latest
-          docker push gcr.io/onx-production/kratosx:latest
+          docker push gcr.io/onx-daily/kratosx:$SHORT_SHA
+          docker push gcr.io/onx-staging/kratosx:$SHORT_SHA
+          docker push gcr.io/onx-production/kratosx:$SHORT_SHA
         fi
 
 tags:
