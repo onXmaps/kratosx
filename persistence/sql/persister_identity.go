@@ -69,7 +69,7 @@ func (p *Persister) normalizeIdentifier(ct identity.CredentialsType, match strin
 		// OIDC credentials are case-sensitive
 		return match
 	case identity.CredentialsTypePassword:
-		fallthrough
+		return strings.ToLower(match)
 	case identity.CredentialsTypeWebAuthn:
 		return stringToLowerTrim(match)
 	}
