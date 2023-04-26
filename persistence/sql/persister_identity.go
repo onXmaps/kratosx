@@ -585,16 +585,10 @@ func (p *Persister) ImportIdentity(ctx context.Context, i *identity.Identity) er
 	}
 
 	if idExists {
-		// if an identity already exists then we delete it
-		// NOTE: this will also delete any active sessions as well as
-		// any verification/pwd reset tokens
-		err = p.DeleteIdentity(ctx, i.ID)
-
-		if err != nil {
-			return sqlcon.HandleError(err)
-		}
+		// if an identity already exists then update it
+		return p.UpdateIdentity(ctx, i)
 	}
 
-	// always create
+	// create if not exists
 	return p.CreateIdentity(ctx, i)
 }
