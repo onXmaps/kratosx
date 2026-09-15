@@ -91,8 +91,9 @@ type Credentials struct {
 type (
 	// swagger:ignore
 	CredentialIdentifier struct {
-		ID         uuid.UUID `db:"id"`
-		Identifier string    `db:"identifier"`
+		ID         uuid.UUID  `db:"id"`
+		Identifier string     `db:"identifier"`
+		IdentityID *uuid.UUID `json:"-" db:"identity_id"`
 		// IdentityCredentialsID is a helper struct field for gobuffalo.pop.
 		IdentityCredentialsID uuid.UUID `json:"-" db:"identity_credential_id"`
 		// IdentityCredentialsTypeID is a helper struct field for gobuffalo.pop.

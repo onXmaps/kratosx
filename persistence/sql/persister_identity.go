@@ -175,6 +175,7 @@ func (p *Persister) createIdentityCredentials(ctx context.Context, i *identity.I
 
 			if err := c.Create(&identity.CredentialIdentifier{
 				Identifier:                ids,
+				IdentityID:                &i.ID,
 				IdentityCredentialsID:     cred.ID,
 				IdentityCredentialsTypeID: ct.ID,
 				NID:                       corp.ContextualizeNID(ctx, p.nid),
