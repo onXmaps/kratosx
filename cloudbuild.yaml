@@ -44,3 +44,6 @@ steps:
 
 tags:
   - kratosx
+
+options:
+  logging: CLOUD_LOGGING_ONLY
